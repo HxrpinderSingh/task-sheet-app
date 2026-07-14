@@ -1,0 +1,8 @@
+{
+  "name": "Google Sheets Task Manager",
+  "description": "A secure, role-based task management application integrated with Google Sheets as a backend, supporting Employee, Manager, and Admin views with real-time syncing.",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
