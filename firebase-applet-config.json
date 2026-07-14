@@ -1,10 +1,10 @@
 {
-  "projectId": "gen-lang-client-0521072650",
-  "appId": "1:350674855681:web:85462759b1dc6a34659d00",
-  "apiKey": "AIzaSyAT1LAGnc6BCxUbx13ycjVusbM_eFGkZ10",
-  "authDomain": "gen-lang-client-0521072650.firebaseapp.com",
-  "storageBucket": "gen-lang-client-0521072650.firebasestorage.app",
-  "messagingSenderId": "350674855681",
-  "measurementId": "",
-  "oAuthClientId": "350674855681-qifjvdkjfkqo455mfn0i1n49jc40d37m.apps.googleusercontent.com"
+  "projectId": "tasks-management-cdc78",
+  "appId": "1:723501352725:web:2531586050dc2d9a6a4b1c",
+  "apiKey": "AIzaSyCsb30nuOr_logZZX6xY7nHs3zPlEdzM",
+  "authDomain": "tasks-management-cdc78.firebaseapp.com",
+  "storageBucket": "tasks-management-cdc78.firebasestorage.app",
+  "messagingSenderId": "723501352725",
+  "measurementId": "G-1J3N5C8YB4",
+  "oAuthClientId": "573723926021-u6dubup1euakq6grto3prju9s225219q.apps.googleusercontent.com"
 }
