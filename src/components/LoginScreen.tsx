@@ -45,7 +45,7 @@ export default function LoginScreen({
     try {
       const success = await onCustomLogin(formattedEmail, cleanPassword);
       if (!success) {
-        setCustomLoginError('Account not found or password incorrect. Contact your admin. (If you recently added this user in Roster Setup, make sure Google Sheets/Drive APIs are enabled, or access the app via the AI Studio preview link to bypass blocked database connections).');
+        setCustomLoginError('Account not found or password incorrect. Please contact your admin or check your credentials.');
       }
     } catch (err: any) {
       setCustomLoginError(err.message || 'An error occurred during sign-in.');

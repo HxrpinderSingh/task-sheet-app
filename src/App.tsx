@@ -304,6 +304,19 @@ export default function App() {
       localStorage.setItem('sheetflow_roles_cache', JSON.stringify(fetchedRoles));
       localStorage.setItem('sheetflow_mappings_cache', JSON.stringify(finalMappings));
       setError(null);
+
+      // Crucial Sync: Save the Google Sheet data directly to the Firestore Sandbox shared DB
+      // so employee credentials can be fetched even if they log in via a sandbox session on another device/browser
+      try {
+        await Promise.all([
+          saveSandboxTasks(fetchedTasks),
+          saveSandboxRoles(fetchedRoles),
+          saveSandboxMappings(finalMappings)
+        ]);
+        console.log('Successfully backed up/synced Google Sheets data to Firestore sandbox DB.');
+      } catch (fsErr) {
+        console.warn('Silent warning: Could not sync Sheets data to Firestore sandbox DB:', fsErr);
+      }
     } catch (err: any) {
       console.error('Error syncing sheet data:', err);
       // Fallback to cache

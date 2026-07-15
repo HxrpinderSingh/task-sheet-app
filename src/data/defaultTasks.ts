@@ -14,7 +14,8 @@ export const defaultRoles: UserRole[] = [
   { email: 'harpinder@ablyworks.com', name: 'Harpinder', role: 'admin', department: 'Management', password: 'password123' },
   { email: 'bhawna@ablyworks.com', name: 'Bhawna', role: 'employee', department: 'Marketing', password: 'password123' },
   { email: 'parveen.dev@ablyworks.com', name: 'Parveen (Dev)', role: 'employee', department: 'Marketing', password: 'password123' },
-  { email: 'design@ablyworks.com', name: 'Design', role: 'employee', department: 'Marketing', password: 'password123' }
+  { email: 'design@ablyworks.com', name: 'Design', role: 'employee', department: 'Marketing', password: 'password123' },
+  { email: 'dm@ablyworks.in', name: 'Parveen', role: 'employee', department: 'Marketing', password: 'F5gT7w7X' }
 ];
 
 export const defaultMappings: DeptMapping[] = [
