@@ -22,6 +22,14 @@ import {
 } from './lib/googleSheets';
 import { Task, UserRole, RoleType, TaskPriority, DeptMapping } from './types';
 import { defaultTasks, defaultRoles, defaultMappings } from './data/defaultTasks';
+import { 
+  getSandboxTasks, 
+  getSandboxRoles, 
+  getSandboxMappings, 
+  saveSandboxTasks, 
+  saveSandboxRoles, 
+  saveSandboxMappings 
+} from './lib/firestoreSync';
 
 // Import UI Components
 import Header from './components/Header';
@@ -100,6 +108,7 @@ export default function App() {
   });
   const [isSyncing, setIsSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [sandboxFallbackWarning, setSandboxFallbackWarning] = useState(false);
 
   // App Navigation & Filters
   const [activeView, setActiveView] = useState<'my-tasks' | 'overdue-tasks' | 'completed-tasks' | 'admin-dashboard' | 'all-tasks'>('my-tasks');
@@ -166,7 +175,57 @@ export default function App() {
   // 2. Fetch or create Spreadsheet backend on successful login
   useEffect(() => {
     if (!token || !user) return;
-    if (token === 'local-credentials-token' || isLocalSandboxMode) return; // Skip sheets init for credential/sandbox users
+    
+    if (token === 'local-credentials-token' || isLocalSandboxMode) {
+      // In Sandbox/Offline Mode, load from Firestore (shared central database) with Local Storage backup
+      const loadSandboxData = async () => {
+        setIsSyncing(true);
+        try {
+          const [fsTasks, fsRoles, fsMappings] = await Promise.all([
+            getSandboxTasks(),
+            getSandboxRoles(),
+            getSandboxMappings()
+          ]);
+
+          const cachedTasks = localStorage.getItem('sheetflow_tasks_cache');
+          const cachedRoles = localStorage.getItem('sheetflow_roles_cache');
+          const cachedMappings = localStorage.getItem('sheetflow_mappings_cache');
+
+          if (fsTasks && fsTasks.length > 0) {
+            setTasks(fsTasks);
+            localStorage.setItem('sheetflow_tasks_cache', JSON.stringify(fsTasks));
+          } else if (cachedTasks) {
+            setTasks(JSON.parse(cachedTasks));
+          } else {
+            setTasks(defaultTasks);
+          }
+
+          if (fsRoles && fsRoles.length > 0) {
+            setRoles(fsRoles);
+            localStorage.setItem('sheetflow_roles_cache', JSON.stringify(fsRoles));
+          } else if (cachedRoles) {
+            setRoles(JSON.parse(cachedRoles));
+          } else {
+            setRoles(defaultRoles);
+          }
+
+          if (fsMappings && fsMappings.length > 0) {
+            setSystemMappings(ensureRequiredMappings(fsMappings));
+            localStorage.setItem('sheetflow_mappings_cache', JSON.stringify(fsMappings));
+          } else if (cachedMappings) {
+            setSystemMappings(ensureRequiredMappings(JSON.parse(cachedMappings)));
+          } else {
+            setSystemMappings(defaultMappings);
+          }
+        } catch (err) {
+          console.error('Error loading Firestore sandbox data:', err);
+        } finally {
+          setIsSyncing(false);
+        }
+      };
+      loadSandboxData();
+      return;
+    }
 
     const setupBackend = async () => {
       setIsSyncing(true);
@@ -199,7 +258,17 @@ export default function App() {
 
       } catch (err: any) {
         console.error('Error establishing Google Sheet backend:', err);
-        setError(`Failed to synchronize with Google Sheets: ${err.message || err}. Please verify spreadsheet access rights.`);
+        const errMsg = err.message || String(err);
+        const isApiDisabled = errMsg.includes('403') || errMsg.includes('disabled') || errMsg.includes('not been used');
+        
+        if (isApiDisabled) {
+          setIsLocalSandboxMode(true);
+          localStorage.setItem('sheetflow_sandbox_mode', 'true');
+          setSandboxFallbackWarning(true);
+          setError(null);
+        } else {
+          setError(`Failed to synchronize with Google Sheets: ${errMsg}. Please verify spreadsheet access rights.`);
+        }
       } finally {
         setIsSyncing(false);
       }
@@ -244,7 +313,18 @@ export default function App() {
       if (cachedTasks) setTasks(JSON.parse(cachedTasks));
       if (cachedRoles) setRoles(JSON.parse(cachedRoles));
       if (cachedMappings) setSystemMappings(ensureRequiredMappings(JSON.parse(cachedMappings)));
-      setError(`Sync failure: ${err.message || 'Check your internet connection or sheet permissions'}`);
+      
+      const errMsg = err.message || String(err);
+      const isApiDisabled = errMsg.includes('403') || errMsg.includes('disabled') || errMsg.includes('not been used');
+      
+      if (isApiDisabled) {
+        setIsLocalSandboxMode(true);
+        localStorage.setItem('sheetflow_sandbox_mode', 'true');
+        setSandboxFallbackWarning(true);
+        setError(null);
+      } else {
+        setError(`Sync failure: ${errMsg}`);
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -284,12 +364,26 @@ export default function App() {
     setError(null);
     setIsLoggingIn(true);
     try {
-      const cachedRolesStr = localStorage.getItem('sheetflow_roles_cache');
+      // 1. Try to fetch up-to-date roles from Firestore sandbox first (shared central database)
       let roster: UserRole[] = [];
-      if (cachedRolesStr) {
-        roster = JSON.parse(cachedRolesStr);
-      } else {
-        roster = defaultRoles;
+      try {
+        const fsRoles = await getSandboxRoles();
+        if (fsRoles && fsRoles.length > 0) {
+          roster = fsRoles;
+          localStorage.setItem('sheetflow_roles_cache', JSON.stringify(fsRoles));
+        }
+      } catch (fsErr) {
+        console.warn('Could not load roles from Firestore on login, falling back to cache:', fsErr);
+      }
+
+      // 2. Fall back to local storage cache if Firestore load is unsuccessful or empty
+      if (roster.length === 0) {
+        const cachedRolesStr = localStorage.getItem('sheetflow_roles_cache');
+        if (cachedRolesStr) {
+          roster = JSON.parse(cachedRolesStr);
+        } else {
+          roster = defaultRoles;
+        }
       }
 
       const matched = roster.find(
@@ -310,12 +404,51 @@ export default function App() {
         localStorage.setItem('sheetflow_custom_user', JSON.stringify(customUser));
         localStorage.setItem('sheetflow_custom_token', customToken);
 
-        const cachedTasks = localStorage.getItem('sheetflow_tasks_cache');
-        if (cachedTasks) {
-          setTasks(JSON.parse(cachedTasks));
-        } else {
-          setTasks(defaultTasks);
+        // Fetch up-to-date tasks from Firestore sandbox as well
+        let tasksList: Task[] = [];
+        try {
+          const fsTasks = await getSandboxTasks();
+          if (fsTasks && fsTasks.length > 0) {
+            tasksList = fsTasks;
+            localStorage.setItem('sheetflow_tasks_cache', JSON.stringify(fsTasks));
+          }
+        } catch (fsErr) {
+          console.warn('Could not load tasks from Firestore on login, falling back to cache:', fsErr);
         }
+
+        if (tasksList.length === 0) {
+          const cachedTasks = localStorage.getItem('sheetflow_tasks_cache');
+          if (cachedTasks) {
+            tasksList = JSON.parse(cachedTasks);
+          } else {
+            tasksList = defaultTasks;
+          }
+        }
+        
+        setTasks(tasksList);
+
+        // Fetch mappings from Firestore sandbox as well
+        let mappingsList: DeptMapping[] = [];
+        try {
+          const fsMappings = await getSandboxMappings();
+          if (fsMappings && fsMappings.length > 0) {
+            mappingsList = fsMappings;
+            localStorage.setItem('sheetflow_mappings_cache', JSON.stringify(fsMappings));
+          }
+        } catch (fsErr) {
+          console.warn('Could not load mappings from Firestore on login, falling back to cache:', fsErr);
+        }
+
+        if (mappingsList.length === 0) {
+          const cachedMappings = localStorage.getItem('sheetflow_mappings_cache');
+          if (cachedMappings) {
+            mappingsList = ensureRequiredMappings(JSON.parse(cachedMappings));
+          } else {
+            mappingsList = defaultMappings;
+          }
+        }
+
+        setSystemMappings(mappingsList);
         return true;
       }
       return false;
@@ -434,7 +567,8 @@ export default function App() {
     }
 
     if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
-      // Offline/credential-based: write to local storage cache only
+      // Offline/credential-based: write to local storage and Firestore
+      await saveSandboxTasks(nextTasks);
       return;
     }
 
@@ -530,6 +664,7 @@ export default function App() {
 
     if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       // Offline/credential-based
+      await saveSandboxTasks(nextTasks);
       return;
     }
 
@@ -554,6 +689,7 @@ export default function App() {
 
     if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       // Offline/credential-based
+      await saveSandboxTasks(nextTasks);
       return;
     }
 
@@ -653,6 +789,7 @@ export default function App() {
     localStorage.setItem('sheetflow_roles_cache', JSON.stringify(nextRoles));
 
     if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
+      await saveSandboxRoles(nextRoles);
       return;
     }
     
@@ -674,6 +811,7 @@ export default function App() {
     localStorage.setItem('sheetflow_roles_cache', JSON.stringify(nextRoles));
 
     if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
+      await saveSandboxRoles(nextRoles);
       return;
     }
 
@@ -695,6 +833,7 @@ export default function App() {
     localStorage.setItem('sheetflow_mappings_cache', JSON.stringify(updatedMappings));
 
     if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
+      await saveSandboxMappings(updatedMappings);
       return;
     }
 
@@ -884,6 +1023,31 @@ export default function App() {
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 relative z-10">
 
         {/* Sync/Error Banner alerts */}
+        {sandboxFallbackWarning && (
+          <div className="mb-6 p-4 bg-amber-500/10 border border-amber-500/30 text-amber-200 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg backdrop-blur-md relative z-10">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-amber-400" />
+              <div>
+                <p className="font-semibold text-xs leading-none mb-1 text-amber-300">Google Sheets API Disabled - Offline Sandbox Activated</p>
+                <p className="text-[11px] text-amber-400 leading-relaxed font-medium">
+                  We detected that Google Drive or Google Sheets API is disabled in your Google Cloud Project. 
+                  To ensure a fast, seamless experience, the app has **automatically switched to Sandbox Mode (Offline)**.
+                </p>
+                <p className="text-[10px] text-slate-400 mt-1.5 font-medium">
+                  All task changes, role updates, and department mappings will be saved locally in your browser. 
+                  To use real-time Google Sheets sync, enable Google Drive & Sheets API in Google Cloud Console and click "try syncing google sheets" in the top bar.
+                </p>
+              </div>
+            </div>
+            <button 
+              onClick={() => setSandboxFallbackWarning(false)} 
+              className="px-3 py-1 text-xs font-bold text-amber-400 hover:text-amber-300 border border-amber-500/30 rounded-lg hover:bg-amber-500/10 cursor-pointer transition-all whitespace-nowrap self-end md:self-center"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
+
         {error && (
           <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 text-red-200 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg backdrop-blur-md relative z-10">
             <div className="flex items-start space-x-3">
