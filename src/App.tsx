@@ -77,6 +77,7 @@ export default function App() {
   const [authInitialized, setAuthInitialized] = useState(false);
 
   // Sheets configuration state
+  const [isLocalSandboxMode, setIsLocalSandboxMode] = useState(() => localStorage.getItem('sheetflow_sandbox_mode') === 'true');
   const [spreadsheetId, setSpreadsheetId] = useState<string | null>(null);
   const [spreadsheetName, setSpreadsheetName] = useState('Task_Management_App_Backend');
   const [spreadsheetUrl, setSpreadsheetUrl] = useState<string | null>(null);
@@ -165,7 +166,7 @@ export default function App() {
   // 2. Fetch or create Spreadsheet backend on successful login
   useEffect(() => {
     if (!token || !user) return;
-    if (token === 'local-credentials-token') return; // Skip sheets init for credential users
+    if (token === 'local-credentials-token' || isLocalSandboxMode) return; // Skip sheets init for credential/sandbox users
 
     const setupBackend = async () => {
       setIsSyncing(true);
@@ -205,11 +206,11 @@ export default function App() {
     };
 
     setupBackend();
-  }, [token, user?.email]);
+  }, [token, user?.email, isLocalSandboxMode]);
 
   // Sync data utility
   const syncData = async (accessToken: string, sheetId: string) => {
-    if (accessToken === 'local-credentials-token') {
+    if (accessToken === 'local-credentials-token' || isLocalSandboxMode) {
       const cachedTasks = localStorage.getItem('sheetflow_tasks_cache');
       const cachedRoles = localStorage.getItem('sheetflow_roles_cache');
       const cachedMappings = localStorage.getItem('sheetflow_mappings_cache');
@@ -356,14 +357,18 @@ export default function App() {
   const activeUserRole = useMemo(() => {
     if (!user) return { role: 'employee' as RoleType, department: 'General' };
     
+    // Explicit override for the main workspace owner to ensure they have admin command
+    const isOwner = user.email.toLowerCase() === 'harpinder@ablyworks.com';
+    
     const matched = roles.find(r => r.email.toLowerCase() === user.email.toLowerCase());
     if (matched) {
-      const normalizedRole = (matched.role || 'employee').toLowerCase() as RoleType;
-      return { role: normalizedRole, department: matched.department || 'General' };
+      const normalizedRole = isOwner ? 'admin' : ((matched.role || 'employee').toLowerCase() as RoleType);
+      const normalizedDept = isOwner ? 'Management' : (matched.department || 'General');
+      return { role: normalizedRole, department: normalizedDept };
     }
 
-    // Default to admin if they are the sheet owner/creator and no roles exist yet
-    if (roles.length === 0) {
+    // Default to admin if they are the sheet owner/creator or owner
+    if (roles.length === 0 || isOwner) {
       return { role: 'admin' as RoleType, department: 'Management' };
     }
 
@@ -428,7 +433,7 @@ export default function App() {
       setSelectedTaskForDetails(task);
     }
 
-    if (token === 'local-credentials-token' || !spreadsheetId) {
+    if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       // Offline/credential-based: write to local storage cache only
       return;
     }
@@ -523,7 +528,7 @@ export default function App() {
       setSelectedTaskForDetails(updated);
     }
 
-    if (token === 'local-credentials-token' || !spreadsheetId) {
+    if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       // Offline/credential-based
       return;
     }
@@ -547,7 +552,7 @@ export default function App() {
     setTasks(nextTasks);
     localStorage.setItem('sheetflow_tasks_cache', JSON.stringify(nextTasks));
 
-    if (token === 'local-credentials-token' || !spreadsheetId) {
+    if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       // Offline/credential-based
       return;
     }
@@ -647,7 +652,7 @@ export default function App() {
     setRoles(nextRoles);
     localStorage.setItem('sheetflow_roles_cache', JSON.stringify(nextRoles));
 
-    if (token === 'local-credentials-token' || !spreadsheetId) {
+    if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       return;
     }
     
@@ -668,7 +673,7 @@ export default function App() {
     setRoles(nextRoles);
     localStorage.setItem('sheetflow_roles_cache', JSON.stringify(nextRoles));
 
-    if (token === 'local-credentials-token' || !spreadsheetId) {
+    if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       return;
     }
 
@@ -689,7 +694,7 @@ export default function App() {
     setSystemMappings(updatedMappings);
     localStorage.setItem('sheetflow_mappings_cache', JSON.stringify(updatedMappings));
 
-    if (token === 'local-credentials-token' || !spreadsheetId) {
+    if (token === 'local-credentials-token' || isLocalSandboxMode || !spreadsheetId) {
       return;
     }
 
@@ -859,6 +864,20 @@ export default function App() {
         onRefresh={handleManualSync}
         onSelectSpreadsheet={() => setShowSheetIdInput(true)}
         isSyncing={isSyncing}
+        isLocalSandboxMode={isLocalSandboxMode}
+        onToggleSandboxMode={(val) => {
+          setIsLocalSandboxMode(val);
+          localStorage.setItem('sheetflow_sandbox_mode', val ? 'true' : 'false');
+          if (!val) {
+            // Turning off sandbox mode: try to sync with sheet backend
+            setError(null);
+            setTimeout(() => {
+              if (token && token !== 'local-credentials-token') {
+                handleManualSync();
+              }
+            }, 100);
+          }
+        }}
       />
 
       {/* Main Container */}
@@ -866,13 +885,31 @@ export default function App() {
 
         {/* Sync/Error Banner alerts */}
         {error && (
-          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 text-red-200 rounded-2xl flex items-start space-x-3 shadow-lg backdrop-blur-md relative z-10">
-            <AlertCircle className="h-5 w-5 shrink-0 mt-0.5" />
-            <div>
-              <p className="font-semibold text-xs leading-none mb-1 text-red-300">Database Sync Error</p>
-              <p className="text-[11px] text-red-400 leading-relaxed font-medium">{error}</p>
+          <div className="mb-6 p-4 bg-red-500/10 border border-red-500/30 text-red-200 rounded-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 shadow-lg backdrop-blur-md relative z-10">
+            <div className="flex items-start space-x-3">
+              <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-red-400" />
+              <div>
+                <p className="font-semibold text-xs leading-none mb-1 text-red-300">Database Sync Error</p>
+                <p className="text-[11px] text-red-400 leading-relaxed font-medium">{error}</p>
+                <p className="text-[10px] text-amber-400 mt-1.5 font-semibold">
+                  Google Drive / Google Sheets API may be disabled in your Google Cloud Project. 
+                  You can enable it using the links above, or switch to Sandbox Mode below to run fully offline.
+                </p>
+              </div>
             </div>
-            <button onClick={() => setError(null)} className="ml-auto text-xs font-semibold text-red-400 hover:text-red-300">Dismiss</button>
+            <div className="flex items-center space-x-3 shrink-0 self-end md:self-center">
+              <button 
+                onClick={() => {
+                  setIsLocalSandboxMode(true);
+                  localStorage.setItem('sheetflow_sandbox_mode', 'true');
+                  setError(null);
+                }}
+                className="px-3 py-1 bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 border border-amber-500/30 text-[10px] font-bold rounded-lg transition-all"
+              >
+                Switch to Sandbox Mode (Offline)
+              </button>
+              <button onClick={() => setError(null)} className="text-xs font-semibold text-red-400 hover:text-red-300">Dismiss</button>
+            </div>
           </div>
         )}
 

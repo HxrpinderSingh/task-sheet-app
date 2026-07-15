@@ -11,7 +11,7 @@ export const defaultRoles: UserRole[] = [
   { email: 'employee2@example.com', name: 'Alice Johnson', role: 'employee', department: 'ATS', password: 'password123' },
   { email: 'employee3@example.com', name: 'Charlie Brown', role: 'employee', department: 'Strategy', password: 'password123' },
   { email: 'praveen@ablyworks.com', name: 'Praveen', role: 'employee', department: 'Marketing', password: 'password123' },
-  { email: 'harpinder@ablyworks.com', name: 'Harpinder', role: 'manager', department: 'Marketing', password: 'password123' },
+  { email: 'harpinder@ablyworks.com', name: 'Harpinder', role: 'admin', department: 'Management', password: 'password123' },
   { email: 'bhawna@ablyworks.com', name: 'Bhawna', role: 'employee', department: 'Marketing', password: 'password123' },
   { email: 'parveen.dev@ablyworks.com', name: 'Parveen (Dev)', role: 'employee', department: 'Marketing', password: 'password123' },
   { email: 'design@ablyworks.com', name: 'Design', role: 'employee', department: 'Marketing', password: 'password123' }

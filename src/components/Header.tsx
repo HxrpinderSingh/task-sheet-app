@@ -33,6 +33,8 @@ interface HeaderProps {
   onRefresh: () => void;
   onSelectSpreadsheet: () => void;
   isSyncing: boolean;
+  isLocalSandboxMode?: boolean;
+  onToggleSandboxMode?: (val: boolean) => void;
 }
 
 export default function Header({
@@ -47,7 +49,9 @@ export default function Header({
   onLogout,
   onRefresh,
   onSelectSpreadsheet,
-  isSyncing
+  isSyncing,
+  isLocalSandboxMode = false,
+  onToggleSandboxMode
 }: HeaderProps) {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
 
@@ -91,36 +95,55 @@ export default function Header({
               </div>
             </div>
 
-            {/* Google Sheets Status Indicator - Visible to Admins ONLY */}
-            {role === 'admin' && spreadsheetId && (
-              <div className="hidden md:flex items-center space-x-2.5 pl-4 border-l border-white/10">
+            {/* Google Sheets Status Indicator OR Local Sandbox Indicator */}
+            {isLocalSandboxMode ? (
+              <div className="flex items-center space-x-2.5 pl-4 border-l border-white/10">
                 <div className="flex flex-col">
                   <div className="flex items-center space-x-1.5">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
-                    <span className="text-[11px] font-semibold text-slate-200 truncate max-w-[150px]" title={spreadsheetName}>
-                      {spreadsheetName.toLowerCase()}
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-amber-400 animate-pulse"></span>
+                    <span className="text-[11px] font-bold text-amber-300 font-mono tracking-tight uppercase">
+                      Sandbox Mode (Offline)
                     </span>
                   </div>
-                  <div className="flex items-center space-x-2 text-[9px] font-mono text-slate-400">
-                    <a 
-                      href={spreadsheetUrl || '#'} 
-                      target="_blank" 
-                      rel="noopener noreferrer" 
-                      className="hover:text-indigo-300 flex items-center space-x-0.5 transition-all"
-                    >
-                      <span>open sheet</span>
-                      <ExternalLink className="h-2 w-2" />
-                    </a>
-                    <span>•</span>
-                    <button 
-                      onClick={onSelectSpreadsheet} 
-                      className="hover:text-slate-200 underline font-semibold transition-all cursor-pointer"
-                    >
-                      switch
-                    </button>
-                  </div>
+                  <button 
+                    onClick={() => onToggleSandboxMode && onToggleSandboxMode(false)}
+                    className="text-[9px] text-slate-400 hover:text-indigo-300 font-semibold underline text-left cursor-pointer transition-all"
+                  >
+                    try syncing google sheets
+                  </button>
                 </div>
               </div>
+            ) : (
+              role === 'admin' && spreadsheetId && (
+                <div className="hidden md:flex items-center space-x-2.5 pl-4 border-l border-white/10">
+                  <div className="flex flex-col">
+                    <div className="flex items-center space-x-1.5">
+                      <span className="inline-block w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                      <span className="text-[11px] font-semibold text-slate-200 truncate max-w-[150px]" title={spreadsheetName}>
+                        {spreadsheetName.toLowerCase()}
+                      </span>
+                    </div>
+                    <div className="flex items-center space-x-2 text-[9px] font-mono text-slate-400">
+                      <a 
+                        href={spreadsheetUrl || '#'} 
+                        target="_blank" 
+                        rel="noopener noreferrer" 
+                        className="hover:text-indigo-300 flex items-center space-x-0.5 transition-all"
+                      >
+                        <span>open sheet</span>
+                        <ExternalLink className="h-2 w-2" />
+                      </a>
+                      <span>•</span>
+                      <button 
+                        onClick={onSelectSpreadsheet} 
+                        className="hover:text-slate-200 underline font-semibold transition-all cursor-pointer"
+                      >
+                        switch
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )
             )}
           </div>
 
