@@ -1,71 +1,79 @@
-import { doc, getDoc, setDoc } from 'firebase/firestore';
-import { db } from './firebase';
 import { Task, UserRole, DeptMapping } from '../types';
-
-const SANDBOX_COLLECTION = 'sheetflow_sandbox';
 
 export async function saveSandboxTasks(tasks: Task[]): Promise<void> {
   try {
-    const docRef = doc(db, SANDBOX_COLLECTION, 'tasks');
-    await setDoc(docRef, { list: tasks, updatedAt: new Date().toISOString() });
+    const res = await fetch('/api/sandbox/tasks', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ list: tasks })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
-    console.warn('Firestore sandbox save failed (falling back to localStorage only):', err);
+    console.warn('API sandbox tasks save failed:', err);
   }
 }
 
 export async function getSandboxTasks(): Promise<Task[] | null> {
   try {
-    const docRef = doc(db, SANDBOX_COLLECTION, 'tasks');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists() && docSnap.data().list) {
-      return docSnap.data().list as Task[];
+    const res = await fetch('/api/sandbox/tasks');
+    if (res.ok) {
+      const data = await res.json();
+      return data.list as Task[];
     }
   } catch (err) {
-    console.warn('Firestore sandbox fetch failed:', err);
+    console.warn('API sandbox tasks fetch failed:', err);
   }
   return null;
 }
 
 export async function saveSandboxRoles(roles: UserRole[]): Promise<void> {
   try {
-    const docRef = doc(db, SANDBOX_COLLECTION, 'roles');
-    await setDoc(docRef, { list: roles, updatedAt: new Date().toISOString() });
+    const res = await fetch('/api/sandbox/roles', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ list: roles })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
-    console.warn('Firestore sandbox save failed (falling back to localStorage only):', err);
+    console.warn('API sandbox roles save failed:', err);
   }
 }
 
 export async function getSandboxRoles(): Promise<UserRole[] | null> {
   try {
-    const docRef = doc(db, SANDBOX_COLLECTION, 'roles');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists() && docSnap.data().list) {
-      return docSnap.data().list as UserRole[];
+    const res = await fetch('/api/sandbox/roles');
+    if (res.ok) {
+      const data = await res.json();
+      return data.list as UserRole[];
     }
   } catch (err) {
-    console.warn('Firestore sandbox fetch failed:', err);
+    console.warn('API sandbox roles fetch failed:', err);
   }
   return null;
 }
 
 export async function saveSandboxMappings(mappings: DeptMapping[]): Promise<void> {
   try {
-    const docRef = doc(db, SANDBOX_COLLECTION, 'mappings');
-    await setDoc(docRef, { list: mappings, updatedAt: new Date().toISOString() });
+    const res = await fetch('/api/sandbox/mappings', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ list: mappings })
+    });
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
   } catch (err) {
-    console.warn('Firestore sandbox save failed (falling back to localStorage only):', err);
+    console.warn('API sandbox mappings save failed:', err);
   }
 }
 
 export async function getSandboxMappings(): Promise<DeptMapping[] | null> {
   try {
-    const docRef = doc(db, SANDBOX_COLLECTION, 'mappings');
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists() && docSnap.data().list) {
-      return docSnap.data().list as DeptMapping[];
+    const res = await fetch('/api/sandbox/mappings');
+    if (res.ok) {
+      const data = await res.json();
+      return data.list as DeptMapping[];
     }
   } catch (err) {
-    console.warn('Firestore sandbox fetch failed:', err);
+    console.warn('API sandbox mappings fetch failed:', err);
   }
   return null;
 }
